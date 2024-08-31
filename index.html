@@ -7,13 +7,24 @@
     <style>
         body {
             font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow-y: auto; /* 세로 스크롤 허용 */
+            background-color: #f4f4f4;
+        }
+
+        .container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin: 0;
             padding: 20px;
-            background-color: #f4f4f4;
-            overflow: hidden; /* 스크롤 방지 */
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
 
         #canvas {
@@ -83,39 +94,41 @@
     </style>
 </head>
 <body>
-    <h1>Flipy - 플립북 만들기</h1>
-    <canvas id="canvas" width="400" height="400"></canvas>
-    
-    <div id="controls">
-        <button id="prevFrame">이전 프레임</button>
-        <button id="nextFrame">다음 프레임</button>
-        <button id="addFrame">프레임 추가</button>
-        <button id="deleteFrame">프레임 삭제</button>
+    <div class="container">
+        <h1>Flipy - 플립북 만들기</h1>
+        <canvas id="canvas" width="400" height="400"></canvas>
+        
+        <div id="controls">
+            <button id="prevFrame">이전 프레임</button>
+            <button id="nextFrame">다음 프레임</button>
+            <button id="addFrame">프레임 추가</button>
+            <button id="deleteFrame">프레임 삭제</button>
+        </div>
+        
+        <div class="frame-controls">
+            <button id="playAnimation">애니메이션 재생</button>
+            <button id="stopAnimation">정지</button>
+            <button id="exportGif">GIF 내보내기</button>
+        </div>
+
+        <ul id="frame-list"></ul>
+
+        <h3>드로잉 설정</h3>
+        <label for="color-picker">색상 선택:</label>
+        <input type="color" id="color-picker" value="#000000">
+
+        <label for="line-width">펜 굵기:</label>
+        <input type="range" id="line-width" min="1" max="10" value="2">
+
+        <h3>이미지 업로드</h3>
+        <input type="file" id="image-upload" accept="image/*">
+        
+        <h3>오디오 추가</h3>
+        <input type="file" id="audioFile" accept="audio/*">
+        <button id="addAudio">오디오 추가</button>
+
+        <div id="audio-list"></div>
     </div>
-    
-    <div class="frame-controls">
-        <button id="playAnimation">애니메이션 재생</button>
-        <button id="stopAnimation">정지</button>
-        <button id="exportGif">GIF 내보내기</button>
-    </div>
-
-    <ul id="frame-list"></ul>
-
-    <h3>드로잉 설정</h3>
-    <label for="color-picker">색상 선택:</label>
-    <input type="color" id="color-picker" value="#000000">
-
-    <label for="line-width">펜 굵기:</label>
-    <input type="range" id="line-width" min="1" max="10" value="2">
-
-    <h3>이미지 업로드</h3>
-    <input type="file" id="image-upload" accept="image/*">
-    
-    <h3>오디오 추가</h3>
-    <input type="file" id="audioFile" accept="audio/*">
-    <button id="addAudio">오디오 추가</button>
-
-    <div id="audio-list"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
 
@@ -260,7 +273,6 @@
 
         function startDrawing(e) {
             e.preventDefault();
-            e.stopPropagation();
             drawing = true;
             ctx.beginPath();
             ctx.moveTo(e.offsetX, e.offsetY);
@@ -268,17 +280,13 @@
 
         function draw(e) {
             if (!drawing) return;
-            e.preventDefault();
-            e.stopPropagation();
             ctx.lineTo(e.offsetX, e.offsetY);
             ctx.strokeStyle = currentColor;
             ctx.lineWidth = lineWidth;
             ctx.stroke();
         }
 
-        function stopDrawing(e) {
-            e.preventDefault();
-            e.stopPropagation();
+        function stopDrawing() {
             if (drawing) {
                 drawing = false;
                 ctx.closePath();
