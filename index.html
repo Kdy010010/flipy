@@ -13,6 +13,7 @@
             margin: 0;
             padding: 20px;
             background-color: #f4f4f4;
+            overflow: hidden; /* 스크롤 방지 */
         }
 
         #canvas {
@@ -258,6 +259,8 @@
         }
 
         function startDrawing(e) {
+            e.preventDefault();
+            e.stopPropagation();
             drawing = true;
             ctx.beginPath();
             ctx.moveTo(e.offsetX, e.offsetY);
@@ -265,13 +268,17 @@
 
         function draw(e) {
             if (!drawing) return;
+            e.preventDefault();
+            e.stopPropagation();
             ctx.lineTo(e.offsetX, e.offsetY);
             ctx.strokeStyle = currentColor;
             ctx.lineWidth = lineWidth;
             ctx.stroke();
         }
 
-        function stopDrawing() {
+        function stopDrawing(e) {
+            e.preventDefault();
+            e.stopPropagation();
             if (drawing) {
                 drawing = false;
                 ctx.closePath();
