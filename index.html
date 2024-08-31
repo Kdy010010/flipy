@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flipy - 플립북 만들기</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        #canvas {
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+            cursor: crosshair;
+        }
+
+        #controls {
+            margin-top: 10px;
+        }
+
+        .frame-controls {
+            display: flex;
+            justify-content: space-between;
+            width: 400px;
+            margin-top: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+        }
+
+        #frame-list {
+            margin-top: 20px;
+            list-style: none;
+            padding: 0;
+        }
+
+        #frame-list li {
+            margin-bottom: 5px;
+            cursor: pointer;
+        }
+
+        #audio-list {
+            margin-top: 20px;
+            width: 400px;
+        }
+
+        .audio-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .audio-item input[type="number"] {
+            width: 60px;
+        }
+
+        #color-picker, #line-width {
+            margin-top: 10px;
+        }
+
+        #image-upload {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Flipy - 플립북 만들기</h1>
+    <canvas id="canvas" width="400" height="400"></canvas>
+    
+    <div id="controls">
+        <button id="prevFrame">이전 프레임</button>
+        <button id="nextFrame">다음 프레임</button>
+        <button id="addFrame">프레임 추가</button>
+        <button id="deleteFrame">프레임 삭제</button>
+    </div>
+    
+    <div class="frame-controls">
+        <button id="playAnimation">애니메이션 재생</button>
+        <button id="stopAnimation">정지</button>
+        <button id="exportGif">GIF 내보내기</button>
+    </div>
+
+    <ul id="frame-list"></ul>
+
+    <h3>드로잉 설정</h3>
+    <label for="color-picker">색상 선택:</label>
+    <input type="color" id="color-picker" value="#000000">
+
+    <label for="line-width">펜 굵기:</label>
+    <input type="range" id="line-width" min="1" max="10" value="2">
+
+    <h3>이미지 업로드</h3>
+    <input type="file" id="image-upload" accept="image/*">
+    
+    <h3>오디오 추가</h3>
+    <input type="file" id="audioFile" accept="audio/*">
+    <button id="addAudio">오디오 추가</button>
+
+    <div id="audio-list"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const prevFrameBtn = document.getElementById('prevFrame');
+        const nextFrameBtn = document.getElementById('nextFrame');
+        const addFrameBtn = document.getElementById('addFrame');
+        const deleteFrameBtn = document.getElementById('deleteFrame');
+        const playAnimationBtn = document.getElementById('playAnimation');
+        const stopAnimationBtn = document.getElementById('stopAnimation');
+        const exportGifBtn = document.getElementById('exportGif');
+        const frameList = document.getElementById('frame-list');
+        const audioFileInput = document.getElementById('audioFile');
+        const addAudioBtn = document.getElementById('addAudio');
+        const audioList = document.getElementById('audio-list');
+        const colorPicker = document.getElementById('color-picker');
+        const lineWidthInput = document.getElementById('line-width');
+        const imageUploadInput = document.getElementById('image-upload');
+
+        let frames = [];
+        let currentFrameIndex = 0;
+        let isPlaying = false;
+        let animationInterval;
+        let audioTracks = [];
+        let drawing = false;
+        let currentColor = colorPicker.value;
+        let lineWidth = lineWidthInput.value;
+
+        function updateFrameList() {
+            frameList.innerHTML = '';
+            frames.forEach((frame, index) => {
+                const li = document.createElement('li');
+                li.textContent = `Frame ${index + 1}`;
+                li.addEventListener('click', () => selectFrame(index));
+                frameList.appendChild(li);
+            });
+        }
+
+        function selectFrame(index) {
+            currentFrameIndex = index;
+            ctx.putImageData(frames[currentFrameIndex], 0, 0);
+        }
+
+        function addFrame() {
+            const frameData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            frames.push(frameData);
+            currentFrameIndex = frames.length - 1;
+            updateFrameList();
+        }
+
+        function deleteFrame() {
+            if (frames.length > 1) {
+                frames.splice(currentFrameIndex, 1);
+                currentFrameIndex = Math.max(currentFrameIndex - 1, 0);
+                ctx.putImageData(frames[currentFrameIndex], 0, 0);
+                updateFrameList();
+            }
+        }
+
+        function playAnimation() {
+            if (frames.length === 0) return;
+            let index = 0;
+            isPlaying = true;
+            animationInterval = setInterval(() => {
+                ctx.putImageData(frames[index], 0, 0);
+                index = (index + 1) % frames.length;
+            }, 100);
+            playAllAudioTracks();
+        }
+
+        function stopAnimation() {
+            clearInterval(animationInterval);
+            isPlaying = false;
+            stopAllAudioTracks();
+        }
+
+        function exportGif() {
+            const gif = new GIF({
+                workers: 2,
+                quality: 10
+            });
+
+            frames.forEach((frame) => {
+                gif.addFrame(frame, { delay: 100 });
+            });
+
+            gif.on('finished', function(blob) {
+                const link = document.createElement('a');
+                link.download = 'flipy-animation.gif';
+                link.href = URL.createObjectURL(blob);
+                link.click();
+            });
+
+            gif.render();
+        }
+
+        function playAllAudioTracks() {
+            audioTracks.forEach(track => {
+                track.audio.currentTime = track.startTime;
+                track.audio.play();
+            });
+        }
+
+        function stopAllAudioTracks() {
+            audioTracks.forEach(track => {
+                track.audio.pause();
+                track.audio.currentTime = 0;
+            });
+        }
+
+        function addAudioTrack() {
+            const file = audioFileInput.files[0];
+            if (!file) return;
+
+            const audio = new Audio(URL.createObjectURL(file));
+            const startTime = 0;
+
+            const track = { audio, startTime };
+            audioTracks.push(track);
+
+            const div = document.createElement('div');
+            div.classList.add('audio-item');
+
+            const label = document.createElement('label');
+            label.textContent = file.name;
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.value = startTime;
+            input.min = 0;
+            input.step = 0.1;
+            input.addEventListener('input', (e) => {
+                track.startTime = parseFloat(e.target.value);
+            });
+
+            div.appendChild(label);
+            div.appendChild(input);
+            audioList.appendChild(div);
+        }
+
+        function startDrawing(e) {
+            drawing = true;
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+        }
+
+        function draw(e) {
+            if (!drawing) return;
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.strokeStyle = currentColor;
+            ctx.lineWidth = lineWidth;
+            ctx.stroke();
+        }
+
+        function stopDrawing() {
+            if (drawing) {
+                drawing = false;
+                ctx.closePath();
+                frames[currentFrameIndex] = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function uploadImage() {
+            const file = imageUploadInput.files[0];
+            if (!file) return;
+
+            const img = new Image();
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                frames[currentFrameIndex] = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            };
+            img.src = URL.createObjectURL(file);
+        }
+
+        prevFrameBtn.addEventListener('click', () => {
+            if (currentFrameIndex > 0) {
+                currentFrameIndex--;
+                ctx.putImageData(frames[currentFrameIndex], 0, 0);
+            }
+        });
+
+        nextFrameBtn.addEventListener('click', () => {
+            if (currentFrameIndex < frames.length - 1) {
+                currentFrameIndex++;
+                ctx.putImageData(frames[currentFrameIndex], 0, 0);
+            }
+        });
+
+        addFrameBtn.addEventListener('click', addFrame);
+        deleteFrameBtn.addEventListener('click', deleteFrame);
+        playAnimationBtn.addEventListener('click', playAnimation);
+        stopAnimationBtn.addEventListener('click', stopAnimation);
+        exportGifBtn.addEventListener('click', exportGif);
+
+        addAudioBtn.addEventListener('click', addAudioTrack);
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        imageUploadInput.addEventListener('change', uploadImage);
+
+        colorPicker.addEventListener('input', (e) => {
+            currentColor = e.target.value;
+        });
+
+        lineWidthInput.addEventListener('input', (e) => {
+            lineWidth = e.target.value;
+        });
+
+        // 초기 프레임 추가
+        addFrame();
+    </script>
+</body>
+</html>
