@@ -13,7 +13,7 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            overflow-y: auto; /* 세로 스크롤 허용 */
+            overflow-y: auto;
             background-color: #f4f4f4;
         }
 
@@ -120,6 +120,8 @@
         <label for="line-width">펜 굵기:</label>
         <input type="range" id="line-width" min="1" max="10" value="2">
 
+        <button id="eraser">지우개</button>
+
         <h3>이미지 업로드</h3>
         <input type="file" id="image-upload" accept="image/*">
         
@@ -149,6 +151,7 @@
         const colorPicker = document.getElementById('color-picker');
         const lineWidthInput = document.getElementById('line-width');
         const imageUploadInput = document.getElementById('image-upload');
+        const eraserBtn = document.getElementById('eraser');
 
         let frames = [];
         let currentFrameIndex = 0;
@@ -158,6 +161,7 @@
         let drawing = false;
         let currentColor = colorPicker.value;
         let lineWidth = lineWidthInput.value;
+        let eraserEnabled = false;
 
         function updateFrameList() {
             frameList.innerHTML = '';
@@ -214,7 +218,8 @@
             });
 
             frames.forEach((frame) => {
-                gif.addFrame(frame, { delay: 100 });
+                ctx.putImageData(frame, 0, 0);
+                gif.addFrame(canvas, { delay: 100 });
             });
 
             gif.on('finished', function(blob) {
@@ -272,7 +277,6 @@
         }
 
         function startDrawing(e) {
-            e.preventDefault();
             drawing = true;
             ctx.beginPath();
             ctx.moveTo(e.offsetX, e.offsetY);
@@ -281,7 +285,7 @@
         function draw(e) {
             if (!drawing) return;
             ctx.lineTo(e.offsetX, e.offsetY);
-            ctx.strokeStyle = currentColor;
+            ctx.strokeStyle = eraserEnabled ? '#FFFFFF' : currentColor;
             ctx.lineWidth = lineWidth;
             ctx.stroke();
         }
@@ -304,6 +308,11 @@
                 frames[currentFrameIndex] = ctx.getImageData(0, 0, canvas.width, canvas.height);
             };
             img.src = URL.createObjectURL(file);
+        }
+
+        function toggleEraser() {
+            eraserEnabled = !eraserEnabled;
+            eraserBtn.style.backgroundColor = eraserEnabled ? '#f00' : '#007bff';
         }
 
         prevFrameBtn.addEventListener('click', () => {
@@ -334,6 +343,7 @@
         canvas.addEventListener('mouseout', stopDrawing);
 
         imageUploadInput.addEventListener('change', uploadImage);
+        eraserBtn.addEventListener('click', toggleEraser);
 
         colorPicker.addEventListener('input', (e) => {
             currentColor = e.target.value;
