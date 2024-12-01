@@ -13,7 +13,6 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            overflow-y: auto;
             background-color: #f4f4f4;
         }
 
@@ -37,9 +36,11 @@
             height: auto;
         }
 
-        #controls, .frame-controls {
+        .controls {
             display: flex;
+            flex-wrap: wrap;
             justify-content: space-between;
+            gap: 10px;
             width: 100%;
             margin-top: 10px;
         }
@@ -51,24 +52,19 @@
             color: white;
             border: none;
             border-radius: 5px;
-            flex-grow: 1;
-            margin: 0 5px;
+            flex: 1;
         }
 
         button:disabled {
             background-color: #ccc;
+            cursor: not-allowed;
         }
 
-        #frame-list, #audio-list {
+        #frame-list, .audio-item {
             margin-top: 20px;
-            width: 100%;
             list-style: none;
             padding: 0;
-        }
-
-        #frame-list li, .audio-item {
-            margin-bottom: 5px;
-            cursor: pointer;
+            width: 100%;
         }
 
         .audio-item {
@@ -81,11 +77,6 @@
             width: 60px;
         }
 
-        #color-picker, #line-width, #image-upload {
-            margin-top: 10px;
-            width: 100%;
-        }
-
         input[type="range"] {
             width: 100%;
         }
@@ -95,279 +86,177 @@
             font-size: 14px;
             color: #007bff;
         }
+
+        .label {
+            margin-top: 10px;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Flipy - 플립북 만들기</h1>
         <canvas id="canvas" width="400" height="400"></canvas>
-        
-        <div id="controls">
-            <button id="prevFrame">이전 프레임</button>
-            <button id="nextFrame">다음 프레임</button>
-        </div>
-        <div id="controls">
+
+        <div class="controls">
+            <button id="prevFrame" disabled>이전 프레임</button>
+            <button id="nextFrame" disabled>다음 프레임</button>
             <button id="addFrame">프레임 추가</button>
-            <button id="deleteFrame">프레임 삭제</button>
+            <button id="deleteFrame" disabled>프레임 삭제</button>
         </div>
-        
-        <div class="frame-controls">
+
+        <div class="controls">
             <button id="playAnimation">애니메이션 재생</button>
-            <button id="stopAnimation">정지</button>
+            <button id="stopAnimation" disabled>정지</button>
             <button id="exportGif">GIF 내보내기</button>
+        </div>
+
+        <div class="label">
+            <label for="animation-speed">애니메이션 속도 (ms):</label>
+            <input type="range" id="animation-speed" min="50" max="1000" value="100">
         </div>
 
         <ul id="frame-list"></ul>
 
-        <h3>드로잉 설정</h3>
-        <label for="color-picker">색상 선택:</label>
-        <input type="color" id="color-picker" value="#000000">
-
-        <label for="line-width">펜 굵기:</label>
-        <input type="range" id="line-width" min="1" max="10" value="2">
-
+        <div class="label">
+            <label for="color-picker">색상 선택:</label>
+            <input type="color" id="color-picker" value="#000000">
+        </div>
+        <div class="label">
+            <label for="line-width">펜 굵기:</label>
+            <input type="range" id="line-width" min="1" max="10" value="2">
+        </div>
         <button id="eraser">지우개</button>
 
-        <h3>이미지 업로드</h3>
-        <input type="file" id="image-upload" accept="image/*">
-        
-        <h3>오디오 추가</h3>
-        <input type="file" id="audioFile" accept="audio/*">
-        <button id="addAudio">오디오 추가</button>
+        <div class="label">
+            <label for="image-upload">이미지 업로드:</label>
+            <input type="file" id="image-upload" accept="image/*">
+        </div>
+
+        <div class="label">
+            <label for="audioFile">오디오 추가:</label>
+            <input type="file" id="audioFile" accept="audio/*">
+            <button id="addAudio">오디오 추가</button>
+        </div>
 
         <div id="audio-list"></div>
-
         <div id="export-status"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const exportGifBtn = document.getElementById('exportGif');
+    const exportStatus = document.getElementById('export-status');
+    const playAnimationBtn = document.getElementById('playAnimation');
+    const stopAnimationBtn = document.getElementById('stopAnimation');
+    const animationSpeedInput = document.getElementById('animation-speed');
 
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const prevFrameBtn = document.getElementById('prevFrame');
-        const nextFrameBtn = document.getElementById('nextFrame');
-        const addFrameBtn = document.getElementById('addFrame');
-        const deleteFrameBtn = document.getElementById('deleteFrame');
-        const playAnimationBtn = document.getElementById('playAnimation');
-        const stopAnimationBtn = document.getElementById('stopAnimation');
-        const exportGifBtn = document.getElementById('exportGif');
-        const frameList = document.getElementById('frame-list');
-        const audioFileInput = document.getElementById('audioFile');
-        const addAudioBtn = document.getElementById('addAudio');
-        const audioList = document.getElementById('audio-list');
-        const colorPicker = document.getElementById('color-picker');
-        const lineWidthInput = document.getElementById('line-width');
-        const imageUploadInput = document.getElementById('image-upload');
-        const eraserBtn = document.getElementById('eraser');
-        const exportStatus = document.getElementById('export-status');
+    let frames = [];
+    let currentFrameIndex = 0;
+    let isPlaying = false;
+    let animationInterval;
+    let animationSpeed = parseInt(animationSpeedInput.value);
 
-        let frames = [];
-        let currentFrameIndex = 0;
-        let isPlaying = false;
-        let animationInterval;
-        let audioTracks = [];
-        let drawing = false;
-        let currentColor = colorPicker.value;
-        let lineWidth = lineWidthInput.value;
-        let eraserEnabled = false;
+    // 마우스 위치 보정 함수
+    function getMousePosition(event) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+        };
+    }
 
-        function updateFrameList() {
-            frameList.innerHTML = '';
-            frames.forEach((frame, index) => {
-                const li = document.createElement('li');
-                li.textContent = `Frame ${index + 1}`;
-                li.addEventListener('click', () => selectFrame(index));
-                frameList.appendChild(li);
-            });
-        }
+    canvas.addEventListener('mousedown', (e) => {
+        const { x, y } = getMousePosition(e);
+        drawing = true;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+    });
 
-        function selectFrame(index) {
-            currentFrameIndex = index;
-            ctx.putImageData(frames[currentFrameIndex], 0, 0);
-        }
-
-        function addFrame() {
-            const frameData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            frames.push(frameData);
-            currentFrameIndex = frames.length - 1;
-            updateFrameList();
-        }
-
-        function deleteFrame() {
-            if (frames.length > 1) {
-                frames.splice(currentFrameIndex, 1);
-                currentFrameIndex = Math.max(currentFrameIndex - 1, 0);
-                ctx.putImageData(frames[currentFrameIndex], 0, 0);
-                updateFrameList();
-            }
-        }
-
-        function playAnimation() {
-            if (frames.length === 0) return;
-            let index = 0;
-            isPlaying = true;
-            animationInterval = setInterval(() => {
-                ctx.putImageData(frames[index], 0, 0);
-                index = (index + 1) % frames.length;
-            }, 100);
-            playAllAudioTracks();
-        }
-
-        function stopAnimation() {
-            clearInterval(animationInterval);
-            isPlaying = false;
-            stopAllAudioTracks();
-        }
-
-        function exportGif() {
-            const gif = new GIF({
-                workers: 2,
-                quality: 10
-            });
-
-            exportStatus.textContent = 'GIF 내보내기 중...';
-
-            frames.forEach((frame) => {
-                ctx.putImageData(frame, 0, 0);
-                gif.addFrame(canvas, { delay: 100 });
-            });
-
-            gif.on('finished', function(blob) {
-                const link = document.createElement('a');
-                link.download = 'flipy-animation.gif';
-                link.href = URL.createObjectURL(blob);
-                link.click();
-
-                exportStatus.textContent = 'GIF 내보내기가 완료되었습니다!';
-            });
-
-            gif.render();
-        }
-
-        function playAllAudioTracks() {
-            audioTracks.forEach(track => {
-                track.audio.currentTime = track.startTime;
-                track.audio.play();
-            });
-        }
-
-        function stopAllAudioTracks() {
-            audioTracks.forEach(track => {
-                track.audio.pause();
-                track.audio.currentTime = 0;
-            });
-        }
-
-        function addAudioTrack() {
-            const file = audioFileInput.files[0];
-            if (!file) return;
-
-            const audio = new Audio(URL.createObjectURL(file));
-            const startTime = 0;
-
-            const track = { audio, startTime };
-            audioTracks.push(track);
-
-            const div = document.createElement('div');
-            div.classList.add('audio-item');
-
-            const label = document.createElement('label');
-            label.textContent = file.name;
-
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.value = startTime;
-            input.min = 0;
-            input.step = 0.1;
-            input.addEventListener('input', (e) => {
-                track.startTime = parseFloat(e.target.value);
-            });
-
-            div.appendChild(label);
-            div.appendChild(input);
-            audioList.appendChild(div);
-        }
-
-        function startDrawing(e) {
-            drawing = true;
-            ctx.beginPath();
-            ctx.moveTo(e.offsetX, e.offsetY);
-        }
-
-        function draw(e) {
-            if (!drawing) return;
-            ctx.lineTo(e.offsetX, e.offsetY);
+    canvas.addEventListener('mousemove', (e) => {
+        if (drawing) {
+            const { x, y } = getMousePosition(e);
+            ctx.lineTo(x, y);
             ctx.strokeStyle = eraserEnabled ? '#FFFFFF' : currentColor;
             ctx.lineWidth = lineWidth;
             ctx.stroke();
         }
+    });
 
-        function stopDrawing() {
-            if (drawing) {
-                drawing = false;
-                ctx.closePath();
-                frames[currentFrameIndex] = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            }
+    canvas.addEventListener('mouseup', () => {
+        if (drawing) {
+            drawing = false;
+            ctx.closePath();
+            frames[currentFrameIndex] = ctx.getImageData(0, 0, canvas.width, canvas.height);
         }
+    });
 
-        function uploadImage() {
-            const file = imageUploadInput.files[0];
-            if (!file) return;
+    // 애니메이션 재생 및 정지
+    function playAnimation() {
+        if (frames.length === 0) return;
 
-            const img = new Image();
-            img.onload = () => {
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                frames[currentFrameIndex] = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            };
-            img.src = URL.createObjectURL(file);
-        }
+        isPlaying = true;
+        playAnimationBtn.disabled = true;
+        stopAnimationBtn.disabled = false;
 
-        function toggleEraser() {
-            eraserEnabled = !eraserEnabled;
-            eraserBtn.style.backgroundColor = eraserEnabled ? '#f00' : '#007bff';
-        }
+        let index = 0;
+        animationInterval = setInterval(() => {
+            ctx.putImageData(frames[index], 0, 0);
+            index = (index + 1) % frames.length;
+        }, animationSpeed);
+    }
 
-        prevFrameBtn.addEventListener('click', () => {
-            if (currentFrameIndex > 0) {
-                currentFrameIndex--;
-                ctx.putImageData(frames[currentFrameIndex], 0, 0);
-            }
+    function stopAnimation() {
+        clearInterval(animationInterval);
+        isPlaying = false;
+        playAnimationBtn.disabled = false;
+        stopAnimationBtn.disabled = true;
+    }
+
+    // 애니메이션 속도 조절
+    animationSpeedInput.addEventListener('input', (e) => {
+        animationSpeed = parseInt(e.target.value);
+    });
+
+    // GIF 내보내기
+    function exportGif() {
+        if (frames.length === 0) return;
+
+        const gif = new GIF({
+            workers: 2,
+            quality: 10,
         });
 
-        nextFrameBtn.addEventListener('click', () => {
-            if (currentFrameIndex < frames.length - 1) {
-                currentFrameIndex++;
-                ctx.putImageData(frames[currentFrameIndex], 0, 0);
-            }
+        exportStatus.textContent = 'GIF 내보내기 중...';
+
+        frames.forEach((frame) => {
+            ctx.putImageData(frame, 0, 0);
+            gif.addFrame(canvas, { delay: animationSpeed });
         });
 
-        addFrameBtn.addEventListener('click', addFrame);
-        deleteFrameBtn.addEventListener('click', deleteFrame);
-        playAnimationBtn.addEventListener('click', playAnimation);
-        stopAnimationBtn.addEventListener('click', stopAnimation);
-        exportGifBtn.addEventListener('click', exportGif);
+        gif.on('finished', (blob) => {
+            const link = document.createElement('a');
+            link.download = 'flipy-animation.gif';
+            link.href = URL.createObjectURL(blob);
+            link.click();
 
-        addAudioBtn.addEventListener('click', addAudioTrack);
-
-        canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('mouseout', stopDrawing);
-
-        imageUploadInput.addEventListener('change', uploadImage);
-        eraserBtn.addEventListener('click', toggleEraser);
-
-        colorPicker.addEventListener('input', (e) => {
-            currentColor = e.target.value;
+            exportStatus.textContent = 'GIF 내보내기가 완료되었습니다!';
         });
 
-        lineWidthInput.addEventListener('input', (e) => {
-            lineWidth = e.target.value;
-        });
+        gif.render();
+    }
 
-        // 초기 프레임 추가
-        addFrame();
-    </script>
+    exportGifBtn.addEventListener('click', exportGif);
+
+    // 초기화
+    function initialize() {
+        const initialFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        frames.push(initialFrame);
+    }
+
+    initialize();
+</script>
+
 </body>
 </html>
